@@ -1,0 +1,973 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>SME CashFlow Copilot</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: sticky section bar, then four stacked sections (Upload, Ledger, Dashboard, Advisor).
+   Dashboard reads summary first: KPI strip, one wide forecast, then paired lists. */
+:root{
+  --gutter:clamp(16px,3vw,32px);
+  --bg:#EEF1F5; --surface:#FFFFFF; --surface-2:#F5F7FA; --line:#D8DEE7; --line-2:#E8ECF2;
+  --fg:#121A2B; --fg-2:#44516A; --fg-3:#66738B;
+  --accent:#2B4BD8; --accent-ink:#FFFFFF; --accent-soft:#E7ECFD;
+  --good:#137A4B; --good-soft:#E1F3EA;
+  --warn:#965608; --warn-soft:#FBEFD9;
+  --crit:#C23A2B; --crit-soft:#FBE4E0;
+  --shadow:0 1px 2px rgba(18,26,43,.05),0 6px 18px rgba(18,26,43,.04);
+  --font-display:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;
+  --font-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0C111B; --surface:#141B29; --surface-2:#192233; --line:#26324A; --line-2:#1E283C;
+    --fg:#E8EDF6; --fg-2:#A9B5CA; --fg-3:#8391A9;
+    --accent:#7F96FF; --accent-ink:#0C111B; --accent-soft:#1B2650;
+    --good:#4FC58A; --good-soft:#12301F; --warn:#E8A94F; --warn-soft:#38280F; --crit:#FF7D6D; --crit-soft:#3B1916;
+    --shadow:none; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0C111B; --surface:#141B29; --surface-2:#192233; --line:#26324A; --line-2:#1E283C;
+  --fg:#E8EDF6; --fg-2:#A9B5CA; --fg-3:#8391A9;
+  --accent:#7F96FF; --accent-ink:#0C111B; --accent-soft:#1B2650;
+  --good:#4FC58A; --good-soft:#12301F; --warn:#E8A94F; --warn-soft:#38280F; --crit:#FF7D6D; --crit-soft:#3B1916;
+  --shadow:none; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:14px;line-height:1.5;
+  padding-inline:var(--gutter);padding-block:0 64px;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,p,ul,ol,dl,dd{margin:0}
+ul,ol{padding:0;list-style:none}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.num{font-variant-numeric:tabular-nums}
+.note{color:var(--fg-3);font-size:12.5px}
+
+/* top bar */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;margin-inline:calc(var(--gutter)*-1);
+  padding-inline:var(--gutter);background:var(--surface);border-bottom:1px solid var(--line)}
+.bar-in{max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:20px;flex-wrap:wrap;padding-block:10px}
+.brand{display:flex;align-items:center;gap:10px;color:var(--fg);text-decoration:none;font-family:var(--font-display);font-weight:600;font-size:17px;letter-spacing:-.01em}
+.brand svg{flex:none}
+.bar nav{display:flex;gap:2px;overflow-x:auto;min-width:0}
+.bar nav a{color:var(--fg-2);text-decoration:none;padding:6px 12px;border-radius:8px;font-weight:500;white-space:nowrap}
+.bar nav a:hover{background:var(--surface-2);color:var(--fg)}
+.asof{margin-left:auto;color:var(--fg-3);font-size:12.5px}
+@media (max-width:760px){.asof{display:none}.bar-in{gap:6px 12px}}
+
+main{max-width:1200px;margin:0 auto;padding-top:32px;display:flex;flex-direction:column;gap:56px}
+section{scroll-margin-top:84px;min-width:0}
+.sec-head{display:flex;flex-direction:column;gap:4px;margin-bottom:16px}
+.sec-head h2{font-family:var(--font-display);font-size:26px;font-weight:600;letter-spacing:-.02em;text-wrap:balance}
+.sec-head p{color:var(--fg-2);max-width:62ch}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;box-shadow:var(--shadow);min-width:0}
+.card.flush{padding:0;overflow:hidden}
+.card h3{font-family:var(--font-display);font-size:16px;font-weight:600;letter-spacing:-.01em}
+.card-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.card-head .sub{color:var(--fg-3);font-size:12.5px}
+
+.btn{font-weight:600;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);padding:8px 16px;border-radius:8px;cursor:pointer;min-height:38px}
+.btn:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.4;cursor:not-allowed;filter:none}
+.btn.ghost{background:transparent;color:var(--accent)}
+.linkbtn{background:none;border:0;color:var(--accent);font-weight:600;cursor:pointer;padding:2px 4px;border-radius:4px}
+.linkbtn:hover{text-decoration:underline}
+
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.good{background:var(--good-soft);color:var(--good)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.crit{background:var(--crit-soft);color:var(--crit)}
+.pill.info{background:var(--accent-soft);color:var(--accent)}
+
+/* upload */
+.upload-grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:16px}
+.drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;height:100%;min-height:240px;
+  border:1.5px dashed var(--line);border-radius:10px;background:var(--surface-2);padding:24px;cursor:pointer;color:var(--fg-2)}
+.drop strong{color:var(--fg);font-family:var(--font-display);font-size:17px;font-weight:600}
+.drop small{color:var(--fg-3)}
+.drop:hover,.drop.over,.drop:focus-within{border-color:var(--accent);background:var(--accent-soft)}
+.drop svg{color:var(--accent)}
+.q-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+.queue{display:flex;flex-direction:column;gap:6px;max-height:232px;overflow:auto}
+.q-item{display:flex;align-items:center;gap:12px;padding:6px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface-2)}
+.thumb{flex:none;width:36px;height:36px;border-radius:6px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.q-name{display:flex;flex-direction:column;min-width:0;flex:1}
+.q-name b{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.q-name small{color:var(--fg-3)}
+.x{flex:none;background:none;border:0;color:var(--fg-3);font-size:20px;line-height:1;width:28px;height:28px;border-radius:6px;cursor:pointer}
+.x:hover{background:var(--line-2);color:var(--fg)}
+.q-empty{display:flex;flex-direction:column;align-items:flex-start;gap:10px;color:var(--fg-2);padding:6px 0}
+.q-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:14px}
+.q-actions .note{flex:1;min-width:200px}
+.progress{margin-top:14px}
+.track{height:8px;border-radius:999px;background:var(--line-2);overflow:hidden}
+.fill{height:100%;width:0;background:var(--accent);border-radius:999px;transition:width .12s linear}
+.progress p{margin-top:8px;color:var(--fg-2);font-size:12.5px}
+.result{margin-top:14px;padding:10px 12px;border-radius:8px;background:var(--good-soft);color:var(--good);font-weight:500}
+.result a{color:inherit;text-decoration:underline}
+
+/* ledger */
+.toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--line)}
+.toolbar .grow{flex:1}
+.seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:2px}
+.seg button{background:none;border:0;padding:5px 12px;border-radius:7px;cursor:pointer;color:var(--fg-2);font-weight:500}
+.seg button span{color:var(--fg-3);margin-left:4px;font-variant-numeric:tabular-nums}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 0 0 1px var(--line)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3);font-weight:600;padding:10px 16px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:11px 16px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--surface-2)}
+th.r,td.r{text-align:right}
+.neg{color:var(--fg)} .pos{color:var(--good);font-weight:500}
+.ledger-tbl{min-width:660px}
+.ledger-tbl td:nth-child(2){min-width:200px}
+.cat{color:var(--fg-2)}
+.tfoot{display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--line);color:var(--fg-3);font-size:12.5px;background:var(--surface-2)}
+tr.fresh td{animation:fresh 2.6s ease-out}
+@keyframes fresh{from{background:var(--accent-soft)}to{background:transparent}}
+
+/* dashboard */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px}
+.kpi{display:flex;flex-direction:column;gap:6px}
+.kpi .lbl{color:var(--fg-2);font-weight:500}
+.kpi .val{font-family:var(--font-display);font-size:30px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.15}
+.kpi .sub{color:var(--fg-3);font-size:12.5px}
+.kpi.primary{background:var(--accent-soft);border-color:transparent}
+.dash{display:flex;flex-direction:column;gap:16px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.grid75{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:16px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--fg-2);font-size:12.5px;align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:16px;height:3px;border-radius:2px;background:var(--accent)}
+.sw.crit{background:var(--crit)}
+.sw.dash{height:0;border-top:2px dashed var(--warn);background:none}
+.buffer-field{display:inline-flex;align-items:center;gap:8px;color:var(--fg-2)}
+.buffer-field input{width:104px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);font-variant-numeric:tabular-nums}
+.chart-wrap{position:relative;min-height:250px}
+.ch{display:block;touch-action:pan-y}
+.ch text{font-family:var(--font-body);font-size:11px;fill:var(--fg-3)}
+.ch .grid{stroke:var(--line-2)}
+.ch .zero{stroke:var(--line)}
+.ch .area{fill:var(--accent);opacity:.1}
+.ch .ln{fill:none;stroke:var(--accent);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.ch .ln-crit{fill:none;stroke:var(--crit);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.ch .band{fill:var(--crit);opacity:.07}
+.ch .buf{stroke:var(--warn);stroke-width:1.3;stroke-dasharray:5 4}
+.ch text.buf-t{fill:var(--warn);font-weight:500;text-anchor:end}
+.ch .mk-in{fill:var(--good)} .ch .mk-out{fill:var(--crit)}
+.ch text.halo{paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round;fill:var(--fg);font-weight:600}
+.ch .dot{stroke:var(--surface);stroke-width:2}
+.tip{position:absolute;top:6px;left:0;pointer-events:none;background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 8px 24px rgba(18,26,43,.14);padding:10px 12px;min-width:190px;max-width:260px;font-size:12.5px;visibility:hidden}
+.tip b.d{display:block;color:var(--fg-3);font-weight:500}
+.tip b.v{display:block;font-family:var(--font-display);font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;margin-bottom:4px}
+.tip div.r{display:flex;justify-content:space-between;gap:12px;color:var(--fg-2)}
+.tip .in{color:var(--good)} .tip .out{color:var(--crit)}
+.assume{margin-top:10px}
+
+.list{display:flex;flex-direction:column}
+.li{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line-2)}
+.li:last-child{border-bottom:0}
+.li-date{display:flex;flex-direction:column;align-items:center;line-height:1.1;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:5px 0}
+.li-date b{font-size:15px;font-variant-numeric:tabular-nums}
+.li-date span{font-size:10.5px;color:var(--fg-3);text-transform:uppercase;letter-spacing:.06em}
+.li-t{font-weight:500;overflow-wrap:anywhere}
+.li-s{color:var(--fg-3);font-size:12.5px}
+.li-a{font-variant-numeric:tabular-nums;font-weight:500;text-align:right}
+.li-a.in{color:var(--good)}
+.cb{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:5px;background:var(--accent-soft);color:var(--accent);font-size:11px;font-weight:600;margin-right:6px;flex:none}
+.rank{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--surface-2);border:1px solid var(--line);font-size:12px;font-weight:600}
+.rank.first{background:var(--crit-soft);border-color:transparent;color:var(--crit)}
+.risk-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding:12px 0;border-bottom:1px solid var(--line-2)}
+.risk-row:last-child{border-bottom:0}
+.risk-name{font-weight:500;display:flex;align-items:center;min-width:0}
+.risk-meter{grid-column:1/-1;display:flex;align-items:center;gap:10px}
+.meter{flex:1;height:6px;border-radius:999px;background:var(--line-2);overflow:hidden}
+.meter i{display:block;height:100%;border-radius:999px;background:var(--warn)}
+.meter i.crit{background:var(--crit)}
+.risk-meter span{font-variant-numeric:tabular-nums;font-weight:600;min-width:24px;text-align:right}
+.risk-meta{grid-column:1/-1;color:var(--fg-3);font-size:12.5px}
+.tot{display:flex;justify-content:space-between;gap:12px;padding-top:12px;margin-top:2px;border-top:1px solid var(--line);font-weight:600}
+
+/* advisor */
+.adv-grid{display:grid;grid-template-columns:minmax(0,8fr) minmax(0,4fr);gap:16px;align-items:start}
+.chat{display:flex;flex-direction:column;gap:14px;max-height:620px;overflow-y:auto;padding:18px}
+.msg{max-width:100%;min-width:0}
+.msg.user{align-self:flex-end;background:var(--accent);color:var(--accent-ink);padding:8px 14px;border-radius:14px 14px 4px 14px;max-width:85%}
+.msg.bot{align-self:flex-start;background:var(--surface-2);border:1px solid var(--line);border-radius:4px 14px 14px 14px;padding:14px 16px;width:100%}
+.msg.bot h4{font-family:var(--font-display);font-size:16px;font-weight:600;letter-spacing:-.01em;text-wrap:balance;margin-bottom:10px}
+.msg .lbl{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--fg-3);font-weight:600;margin:12px 0 6px}
+.nums{display:flex;flex-direction:column;border:1px solid var(--line-2);border-radius:8px;background:var(--surface);overflow:hidden}
+.nums>div{display:flex;justify-content:space-between;gap:16px;padding:6px 12px;border-bottom:1px solid var(--line-2)}
+.nums>div:last-child{border-bottom:0}
+.nums dt{color:var(--fg-2)}
+.nums dd{font-weight:600;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.nums dd.good{color:var(--good)} .nums dd.warn{color:var(--warn)} .nums dd.crit{color:var(--crit)}
+.msg p{color:var(--fg)}
+.msg ol{display:flex;flex-direction:column;gap:6px;counter-reset:a}
+.msg ol li{counter-increment:a;padding-left:26px;position:relative}
+.msg ol li::before{content:counter(a);position:absolute;left:0;top:1px;width:18px;height:18px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:11px;font-weight:600;display:grid;place-items:center}
+.msg .foot{margin-top:12px;color:var(--fg-3);font-size:12px}
+.dots{display:inline-flex;gap:4px;padding:4px 0}
+.dots i{width:6px;height:6px;border-radius:50%;background:var(--fg-3);animation:blink 1s infinite}
+.dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+.ask{display:flex;gap:10px;padding:14px 16px;border-top:1px solid var(--line);background:var(--surface-2)}
+.ask input{flex:1;min-width:0;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.disclaimer{padding:10px 16px;border-top:1px solid var(--line);color:var(--fg-2);font-size:12.5px;background:var(--surface)}
+.side{display:flex;flex-direction:column;gap:16px}
+.chips{display:flex;flex-direction:column;gap:8px}
+.chip{text-align:left;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer;color:var(--fg)}
+.chip:hover{border-color:var(--accent);background:var(--accent-soft)}
+.reads{display:flex;flex-direction:column;gap:6px}
+.reads li{display:flex;justify-content:space-between;gap:12px;color:var(--fg-2)}
+.reads b{color:var(--fg);font-variant-numeric:tabular-nums}
+
+@media (max-width:900px){
+  .upload-grid,.grid2,.grid75,.adv-grid{grid-template-columns:minmax(0,1fr)}
+  .drop{min-height:170px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+
+<header class="bar">
+  <div class="bar-in">
+    <a class="brand" href="#upload" data-go>
+      <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="7" fill="var(--accent)"/><path d="M6 19l5-5 4 3 7-8" fill="none" stroke="var(--accent-ink)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="22" cy="9" r="2" fill="var(--accent-ink)"/></svg>
+      <span>SME CashFlow Copilot</span>
+    </a>
+    <nav aria-label="Sections">
+      <a href="#upload" data-go>Upload</a>
+      <a href="#ledger" data-go>Ledger</a>
+      <a href="#dashboard" data-go>Cash-Flow Dashboard</a>
+      <a href="#advisor" data-go>SME Advisor</a>
+    </nav>
+    <div class="asof">Sample data · Nimman Roast &amp; Co. · Tue 13 Oct 2026</div>
+  </div>
+</header>
+
+<main>
+  <section id="upload" aria-labelledby="h-upload">
+    <div class="sec-head">
+      <h2 id="h-upload">Upload</h2>
+      <p>Add receipts, supplier invoices or photos of stock. Each file becomes a ledger entry for you to review.</p>
+    </div>
+    <div class="upload-grid">
+      <div class="card">
+        <label class="drop" id="drop">
+          <input id="file-input" class="sr-only" type="file" accept="image/*,application/pdf" multiple>
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V5m0 0l-4 4m4-4l4 4"/><path d="M5 15v3a2 2 0 002 2h10a2 2 0 002-2v-3"/></svg>
+          <strong>Drop files here</strong>
+          <span>or click to choose receipts, invoices and inventory photos</span>
+          <small>JPG, PNG or PDF</small>
+        </label>
+      </div>
+      <div class="card">
+        <div class="q-head"><h3>Ready to analyze</h3><span class="note" id="q-count"></span></div>
+        <ul class="queue" id="queue"></ul>
+        <div class="q-actions">
+          <button class="btn" id="analyze" type="button">Analyze Receipts</button>
+          <p class="note">Demo mode: your files are not read. Each file is matched to a sample extraction so you can see how the ledger fills. Nothing leaves your browser.</p>
+        </div>
+        <div class="progress" id="progress" hidden>
+          <div class="track" id="track" role="progressbar" aria-label="Analysis progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" id="fill"></div></div>
+          <p id="prog-text"></p>
+        </div>
+        <p class="result" id="result" role="status" aria-live="polite" hidden></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="ledger" aria-labelledby="h-ledger">
+    <div class="sec-head">
+      <h2 id="h-ledger">Ledger</h2>
+      <p>Transactions extracted from your documents, with VAT split out at 7%. Review them, then approve.</p>
+    </div>
+    <div class="card flush">
+      <div class="toolbar">
+        <div class="seg" role="group" aria-label="Filter ledger" id="seg">
+          <button type="button" data-f="all" aria-pressed="true">All<span id="c-all"></span></button>
+          <button type="button" data-f="pending" aria-pressed="false">Pending<span id="c-pending"></span></button>
+          <button type="button" data-f="approved" aria-pressed="false">Approved<span id="c-approved"></span></button>
+        </div>
+        <div class="grow"></div>
+        <span class="note" id="ledger-msg" role="status" aria-live="polite"></span>
+        <button class="btn" id="approve-all" type="button">Approve All</button>
+      </div>
+      <div class="tablewrap">
+        <table class="ledger-tbl">
+          <thead><tr><th>Date</th><th>Vendor</th><th class="r">Amount</th><th class="r">VAT</th><th>Category</th><th>Status</th></tr></thead>
+          <tbody id="ledger-body"></tbody>
+        </table>
+      </div>
+      <div class="tfoot" id="ledger-foot"></div>
+    </div>
+  </section>
+
+  <section id="dashboard" aria-labelledby="h-dash">
+    <div class="sec-head">
+      <h2 id="h-dash">Cash-Flow Dashboard</h2>
+      <p>Where your cash stands today and how the next 30 days are likely to go.</p>
+    </div>
+    <div class="dash">
+      <div class="kpis" id="kpis"></div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h3>30-day cash-flow forecast</h3>
+            <div class="sub" id="chart-sub"></div>
+          </div>
+          <label class="buffer-field" for="buffer">Safety buffer ฿
+            <input id="buffer" type="number" min="0" step="5000" value="50000" inputmode="numeric">
+          </label>
+        </div>
+        <div class="chart-wrap" id="chart"></div>
+        <div class="legend assume">
+          <span><i class="sw"></i>Projected balance</span>
+          <span><i class="sw crit"></i>Below buffer</span>
+          <span><i class="sw dash"></i>Safety buffer</span>
+          <span><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1l4 8H1z" fill="var(--good)"/></svg>Customer payment</span>
+          <span><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 9L1 1h8z" fill="var(--crit)"/></svg>Bill due</span>
+        </div>
+        <p class="note assume">Assumes walk-in and online sales of ฿4,200 on weekdays and ฿6,100 on weekends, ฿1,500 a day in running costs, and each invoice paid after the customer's usual delay.</p>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <div class="card-head"><h3>Upcoming expenses</h3><span class="sub" id="up-sub"></span></div>
+          <ul class="list" id="upcoming"></ul>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Expected incoming payments</h3><span class="sub" id="in-sub"></span></div>
+          <ul class="list" id="incoming"></ul>
+        </div>
+      </div>
+
+      <div class="grid75">
+        <div class="card flush">
+          <div class="card-head" style="padding:20px 20px 0"><h3>Overdue invoices</h3><span class="sub" id="od-sub"></span></div>
+          <div class="tablewrap">
+            <table style="min-width:520px">
+              <thead><tr><th>Priority</th><th>Invoice</th><th>Customer</th><th class="r">Days late</th><th class="r">Amount</th></tr></thead>
+              <tbody id="overdue"></tbody>
+            </table>
+          </div>
+          <div class="tfoot" id="od-foot"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>High-risk customers</h3><span class="sub">Risk score 0–100</span></div>
+          <div id="risk"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="advisor" aria-labelledby="h-adv">
+    <div class="sec-head">
+      <h2 id="h-adv">SME Advisor</h2>
+      <p>Ask about cash, customers or bills. Every answer shows the numbers, the reason and what to do next.</p>
+    </div>
+    <div class="adv-grid">
+      <div class="card flush">
+        <div class="chat" id="chat" aria-live="polite"></div>
+        <form class="ask" id="ask-form" autocomplete="off">
+          <label class="sr-only" for="ask">Ask the advisor</label>
+          <input id="ask" type="text" placeholder="Ask a question, for example: What if Customer B pays a month late?">
+          <button class="btn" type="submit">Ask</button>
+        </form>
+        <p class="disclaimer">This assistant provides operational guidance based on sample data and is not financial advice.</p>
+      </div>
+      <div class="side">
+        <div class="card">
+          <h3 style="margin-bottom:12px">Try asking</h3>
+          <div class="chips" id="chips"></div>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:12px">Data the advisor reads</h3>
+          <ul class="reads" id="reads"></ul>
+          <p class="note" style="margin-top:12px">Customers are labelled A to F, so you can ask about "Customer A". Change the safety buffer on the dashboard and answers follow.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+'use strict';
+/*MODEL-START*/
+var TODAY='2026-10-13', OPENING=85000, HORIZON=30, MISC=1500, SALES={weekday:4200,weekend:6100};
+var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function pd(iso){var p=iso.split('-').map(Number);return Date.UTC(p[0],p[1]-1,p[2]);}
+function addDays(iso,n){return new Date(pd(iso)+n*86400000).toISOString().slice(0,10);}
+function diffDays(a,b){return Math.round((pd(a)-pd(b))/86400000);}
+function dow(iso){return new Date(pd(iso)).getUTCDay();}
+function fd(iso){var p=iso.split('-').map(Number);return p[2]+' '+MONTHS[p[1]-1];}
+function fdw(iso){return DOW[dow(iso)]+' '+fd(iso);}
+function baht(n){return '฿'+Math.round(Math.abs(n)).toLocaleString('en-US');}
+function sbaht(n){return (n<0?'−':'+')+baht(n);}
+function kb(n){var a=Math.abs(n);var s=a>=1000?'฿'+(Math.round(a/100)/10).toLocaleString('en-US')+'k':'฿'+Math.round(a);return (n<0?'−':'')+s;}
+function sum(a){return a.reduce(function(s,x){return s+x;},0);}
+var LAST=addDays(TODAY,HORIZON);
+
+var CUSTOMERS=[
+  {id:'A',name:'Lanna Hotel Group',risk:22,avgLate:3},
+  {id:'B',name:'Doi Kham Catering',risk:81,avgLate:19},
+  {id:'C',name:'Ping River Café',risk:52,avgLate:9},
+  {id:'D',name:'Sankamphaeng Resort',risk:71,avgLate:14},
+  {id:'E',name:'Nimman Co-Working',risk:12,avgLate:0},
+  {id:'F',name:'Mae Rim Bakery',risk:35,avgLate:2}
+];
+var INVOICES=[
+  {id:'INV-1047',cust:'B',amount:46800,due:'2026-09-20'},
+  {id:'INV-1049',cust:'D',amount:72000,due:'2026-09-28'},
+  {id:'INV-1051',cust:'C',amount:18200,due:'2026-10-01'},
+  {id:'INV-1056',cust:'B',amount:21500,due:'2026-10-28'},
+  {id:'INV-1058',cust:'A',amount:64000,due:'2026-10-22'},
+  {id:'INV-1060',cust:'E',amount:15600,due:'2026-11-03'},
+  {id:'INV-1062',cust:'F',amount:9800,due:'2026-11-09'}
+];
+var EXPENSES=[
+  {date:'2026-10-15',name:'Ping Valley Green Beans Co.',cat:'Inventory',amount:38400,flex:true},
+  {date:'2026-10-15',name:'Social security contribution',cat:'Payroll tax',amount:3750},
+  {date:'2026-10-23',name:'VAT return payment (Sep)',cat:'Tax',amount:14800},
+  {date:'2026-10-30',name:'Staff payroll (6 staff)',cat:'Payroll',amount:62000},
+  {date:'2026-11-01',name:'Shop rent',cat:'Rent',amount:28000},
+  {date:'2026-11-05',name:'SME bank loan instalment',cat:'Loan',amount:12500},
+  {date:'2026-11-10',name:'Electricity, water and internet (est.)',cat:'Utilities',amount:10100},
+  {date:'2026-11-10',name:'Green bean restock (planned)',cat:'Inventory',amount:41000,flex:true}
+];
+var LEDGER0=[
+  {id:1,date:'2026-10-01',vendor:'Nimman Property Co.',amount:-28000,cat:'Rent',noVat:true,status:'approved'},
+  {id:2,date:'2026-10-02',vendor:'POS sales, week 1',amount:33400,cat:'Sales',status:'approved'},
+  {id:3,date:'2026-10-03',vendor:'Ping Valley Green Beans Co.',amount:-41200,cat:'Inventory',status:'approved'},
+  {id:4,date:'2026-10-06',vendor:'PTT Station',amount:-2140,cat:'Transport',status:'approved'},
+  {id:5,date:'2026-10-07',vendor:'Chiang Mai Packaging Co.',amount:-9630,cat:'Supplies',status:'approved'},
+  {id:6,date:'2026-10-08',vendor:'Lanna Hotel Group (INV-1042)',amount:38500,cat:'Sales',status:'approved'},
+  {id:7,date:'2026-10-09',vendor:'POS sales, week 2',amount:35100,cat:'Sales',status:'approved'},
+  {id:8,date:'2026-10-10',vendor:'PEA Electricity',amount:-7420,cat:'Utilities',status:'pending'},
+  {id:9,date:'2026-10-11',vendor:'Makro Chiang Mai',amount:-18765,cat:'Inventory',status:'pending'},
+  {id:10,date:'2026-10-12',vendor:'AIS Fibre',amount:-2675,cat:'Utilities',status:'pending'},
+  {id:11,date:'2026-10-12',vendor:'Google Ads',amount:-4280,cat:'Marketing',noVat:true,status:'pending'}
+];
+var POOL=[
+  {date:'2026-10-13',vendor:'Tops Supermarket',amount:-3210,cat:'Supplies'},
+  {date:'2026-10-13',vendor:'Lazada seller fees',amount:-1926,cat:'Fees'},
+  {date:'2026-10-12',vendor:'HomePro Chiang Mai',amount:-6420,cat:'Maintenance'},
+  {date:'2026-10-13',vendor:'Shopee payout',amount:9640,cat:'Sales'},
+  {date:'2026-10-13',vendor:'Ping Valley Green Beans Co.',amount:-24610,cat:'Inventory'},
+  {date:'2026-10-11',vendor:'Kasem Print & Label',amount:-2140,cat:'Marketing'},
+  {date:'2026-10-13',vendor:'PTT Station',amount:-1605,cat:'Transport'},
+  {date:'2026-10-12',vendor:'Chiang Mai Water Supply',amount:-640,cat:'Utilities',noVat:true}
+];
+function vatOf(t){return t.noVat?0:Math.round(Math.abs(t.amount)*7/107);}
+
+var state={ledger:LEDGER0.map(function(t){return Object.assign({},t);}),buffer:50000,fc:null};
+function cust(id){return CUSTOMERS.filter(function(c){return c.id===id;})[0];}
+function cash(){return OPENING+sum(state.ledger.map(function(t){return t.amount;}));}
+function expDate(inv,extra){
+  var c=cust(inv.cust);
+  var base=inv.due<TODAY?addDays(TODAY,c.risk>=75?14:c.risk>=60?10:5):addDays(inv.due,c.avgLate);
+  return addDays(base,extra||0);
+}
+function openInv(){
+  return INVOICES.map(function(i){return {inv:i,cust:cust(i.cust),exp:expDate(i),late:Math.max(0,diffDays(TODAY,i.due))};});
+}
+function buildForecast(o){
+  o=o||{};var shift=o.shift||{},over=o.override||{};
+  var bal=cash();
+  var days=[{i:0,date:TODAY,balance:bal,sales:0,inflow:0,outflow:0,items:[]}];
+  for(var i=1;i<=HORIZON;i++){
+    var date=addDays(TODAY,i),wk=(dow(date)===0||dow(date)===6);
+    var sales=wk?SALES.weekend:SALES.weekday,items=[],inn=sales,out=MISC;
+    if(!o.noInvoices){
+      INVOICES.forEach(function(inv){
+        var dt=over[inv.id]||expDate(inv,shift[inv.cust]||0);
+        if(dt===date){inn+=inv.amount;items.push({kind:'in',label:cust(inv.cust).name+' · '+inv.id,amount:inv.amount});}
+      });
+    }
+    EXPENSES.forEach(function(e){
+      var ed=(o.moveExp&&o.moveExp.name===e.name)?addDays(e.date,o.moveExp.days):e.date;
+      if(ed===date){out+=e.amount;items.push({kind:'out',label:e.name,amount:e.amount});}
+    });
+    bal+=inn-out;
+    days.push({i:i,date:date,balance:bal,sales:sales,inflow:inn,outflow:out,items:items});
+  }
+  return days;
+}
+function minOf(a){return a.reduce(function(x,y){return y.balance<x.balance?y:x;});}
+
+/* ---------- advisor ---------- */
+function footer(){return 'Based on data as of '+fd(TODAY)+' · cash '+baht(cash())+' · '+state.ledger.length+' ledger entries';}
+function parseDays(q){
+  var w={a:1,an:1,one:1,two:2,three:3,four:4,five:5,six:6};
+  var m=q.match(/(?:^|[^a-z0-9.])(\d+(?:\.\d+)?|a|an|one|two|three|four|five|six)\s*(days?|weeks?|wks?|months?)\b/);
+  if(!m)return null;
+  var n=w[m[1]]||parseFloat(m[1]),u=m[2];
+  return Math.round(n*(u.charAt(0)==='w'?7:u.charAt(0)==='m'?30:1));
+}
+function findCustomer(q){
+  var m=q.match(/customer\s+([a-f])\b/);
+  if(m)return cust(m[1].toUpperCase());
+  for(var i=0;i<CUSTOMERS.length;i++){
+    var w=CUSTOMERS[i].name.toLowerCase().split(' ')[0];
+    if(new RegExp('\\b'+w+'\\b').test(q))return CUSTOMERS[i];
+  }
+  return null;
+}
+function aCash(){
+  var EOM='2026-10-31',buf=state.buffer,fc=state.fc;
+  var sl=fc.filter(function(d){return d.date<=EOM;}),lo=minOf(sl),end=sl[sl.length-1];
+  var below=sl.filter(function(d){return d.balance<buf;});
+  var bills=EXPENSES.filter(function(e){return e.date<=EOM;});
+  var rec=openInv().filter(function(x){return x.exp>TODAY&&x.exp<=EOM;});
+  var recTot=sum(rec.map(function(x){return x.inv.amount;}));
+  var sales=sum(sl.slice(1).map(function(d){return d.sales;}));
+  var lo0=minOf(buildForecast({noInvoices:true}).filter(function(d){return d.date<=EOM;}));
+  var big=sl.slice(1).reduce(function(a,b){return b.outflow>a.outflow?b:a;});
+  var bigItems=big.items.filter(function(i){return i.kind==='out';}).map(function(i){return i.label;}).join(' + ');
+  var firstIn=rec.map(function(x){return x.exp;}).sort()[0];
+  var neg=sl.filter(function(d){return d.balance<0;})[0];
+  var tone=neg?'crit':below.length?'warn':'good',head;
+  if(neg)head='No, not without action. Cash would run out on '+fd(neg.date)+'.';
+  else if(below.length)head='Yes, but it gets tight. Your low point is '+baht(lo.balance)+' on '+fd(lo.date)+', '+baht(buf-lo.balance)+' under your '+kb(buf)+' buffer.';
+  else head='Yes. Your lowest balance this month is '+baht(lo.balance)+' on '+fd(lo.date)+', above your '+kb(buf)+' buffer.';
+  var nums=[
+    ['Cash today',baht(fc[0].balance)],
+    ['Bills due by 31 Oct',baht(sum(bills.map(function(b){return b.amount;})))+' ('+bills.length+' bills)'],
+    ['Customer payments expected by 31 Oct',baht(recTot)+' ('+rec.length+' invoices)'],
+    ['Estimated sales to 31 Oct',baht(sales)],
+    ['Lowest balance',baht(lo.balance)+' on '+fd(lo.date),tone],
+    ['Projected balance on 31 Oct',baht(end.balance)],
+    ['Days below buffer',below.length?below.length+' ('+fd(below[0].date)+' to '+fd(below[below.length-1].date)+')':'None',below.length?'warn':'good']
+  ];
+  var why,acts=[];
+  var pay=EXPENSES.filter(function(e){return e.cat==='Payroll';})[0];
+  var pday=fc.filter(function(d){return d.date===pay.date;})[0];
+  if(below.length){
+    var pre=EXPENSES.filter(function(e){return e.date<=lo.date;});
+    var preTxt=pre.length?'Between now and '+fd(lo.date)+', '+baht(sum(pre.map(function(e){return e.amount;})))+' of bills fall due ('+pre.map(function(e){return e.name;}).join(' + ')+')':fd(big.date)+' is your heaviest day: '+baht(big.outflow)+' goes out ('+bigItems+')';
+    why='The squeeze is about timing, not the month as a whole. '+preTxt+', and the first expected customer payment does not land until '+fd(firstIn)+'. After that, '+baht(recTot)+' of expected invoice payments lifts you to '+baht(end.balance)+' by 31 Oct. Without any invoice payments you would fall to '+baht(lo0.balance)+' on '+fd(lo0.date)+'.';
+    var od=openInv().filter(function(x){return x.late>0;}).sort(function(a,b){return a.cust.risk-b.cust.risk;})[0];
+    if(od){var gap=buf-lo.balance;
+      acts.push('Chase '+od.cust.name+' for '+od.inv.id+' ('+baht(od.inv.amount)+') before '+fd(below[0].date)+'. It is '+od.late+' days overdue and the lowest-risk overdue account, so it is your fastest cash.'+(od.inv.amount>=gap?' On its own it covers the '+baht(gap)+' gap to your buffer.':''));}
+    var mv=EXPENSES.filter(function(e){return e.flex&&e.date<=EOM;}).sort(function(a,b){return b.amount-a.amount;})[0];
+    if(mv){var lo2=minOf(buildForecast({moveExp:{name:mv.name,days:7}}).filter(function(d){return d.date<=EOM;}));
+      acts.push('Ask '+mv.name+' to move the '+baht(mv.amount)+' payment due '+fd(mv.date)+' back by a week. Your lowest balance this month would then be '+baht(lo2.balance)+(lo2.balance>=buf?', above your buffer.':', still under your buffer.'));}
+    acts.push('Hold new stock orders until the overdue money arrives. Payroll of '+baht(pay.amount)+' goes out on '+fd(pay.date)+' and the projected balance after it is '+baht(pday.balance)+'.');
+  }else{
+    why='Cash today plus daily sales and expected invoice payments cover every bill due by 31 Oct with room to spare. The largest single day is '+fd(big.date)+' at '+baht(big.outflow)+' ('+bigItems+'), and the balance stays above your buffer throughout.';
+    acts.push('Keep chasing overdue invoices so the buffer stays intact. Payroll of '+baht(pay.amount)+' on '+fd(pay.date)+' leaves a projected '+baht(pday.balance)+'.');
+    acts.push('Pay suppliers on their due dates. Early payment is not needed to protect cash this month.');
+    acts.push('If you want a larger cushion, raise the safety buffer on the dashboard and see where the forecast dips below it.');
+  }
+  return {head:head,nums:nums,why:why,acts:acts};
+}
+function aCollect(){
+  var EOM='2026-10-31';
+  var od=openInv().filter(function(x){return x.late>0;}).map(function(x){x.score=x.inv.amount*x.cust.risk/100;return x;}).sort(function(a,b){return b.score-a.score;});
+  if(!od.length)return {head:'You have no overdue invoices right now.',nums:[['Overdue total',baht(0),'good']],why:'Every open invoice is still within its payment terms.',acts:['Send a reminder 5 days before the next due date, '+fd(INVOICES.map(function(i){return i.due;}).sort()[0])+'.']};
+  var top=od[0],tot=sum(od.map(function(x){return x.inv.amount;})),scoreTot=sum(od.map(function(x){return x.score;}));
+  var baseLo=minOf(state.fc.filter(function(d){return d.date<=EOM;}));
+  var early=buildForecast({override:(function(){var o={};o[top.inv.id]=addDays(TODAY,2);return o;})()});
+  var loE=minOf(early.filter(function(d){return d.date<=EOM;}));
+  var worst=od.slice().sort(function(a,b){return b.cust.risk-a.cust.risk;})[0];
+  var quick=od.slice().sort(function(a,b){return a.cust.risk-b.cust.risk;})[0];
+  var nums=od.map(function(x,i){return [(i+1)+'. '+x.cust.name+' ('+x.cust.id+')',baht(x.inv.amount)+' · '+x.late+' days late · risk '+x.cust.risk];});
+  nums.push(['Total overdue',baht(tot),'crit']);
+  nums.push(['Lowest balance by 31 Oct, as forecast',baht(baseLo.balance)+' on '+fd(baseLo.date)]);
+  nums.push(['If '+top.cust.name+' pays by '+fd(addDays(TODAY,2)),baht(loE.balance),'good']);
+  var why='Ranked by amount multiplied by risk score, '+top.cust.name+' has '+baht(top.score)+' at stake, '+Math.round(top.score/scoreTot*100)+'% of your risk-weighted overdue balance. It is expected to pay on '+fd(top.exp)+'; if it pays by '+fd(addDays(TODAY,2))+' instead, your low point this month moves from '+baht(baseLo.balance)+' to '+baht(loE.balance)+'.';
+  if(worst.cust.id!==top.cust.id)why+=' '+worst.cust.name+' carries the highest risk score ('+worst.cust.risk+') and needs a firm follow-up in the same week.';
+  var acts=['Contact '+top.cust.name+' today about '+top.inv.id+'. Ask for a payment date no later than '+fd(addDays(TODAY,2))+', or '+baht(Math.round(top.inv.amount/2000)*1000)+' now and the rest by '+fd(addDays(TODAY,10))+'.'];
+  var other=INVOICES.filter(function(i){return i.cust===worst.cust.id&&i.due>=TODAY;})[0];
+  acts.push('Send '+worst.cust.name+' a formal reminder for '+worst.inv.id+'.'+(other?' Ask for a deposit on '+other.id+' ('+baht(other.amount)+', due '+fd(other.due)+') before you deliver.':' Pause new credit orders until it clears.'));
+  if(quick.cust.id!==top.cust.id&&quick.cust.id!==worst.cust.id)acts.push('Send '+quick.cust.name+' a friendly reminder with a PromptPay QR code for '+baht(quick.inv.amount)+'. A QR code makes paying today easy.');
+  acts.push('Review collections every Monday. Contact anyone who is more than 7 days late the same day.');
+  return {head:'Collect from '+top.cust.name+' first: '+baht(top.inv.amount)+', '+top.late+' days overdue.',nums:nums,why:why,acts:acts};
+}
+function aScenario(c,days,assumedC,assumedD){
+  var buf=state.buffer,base=state.fc;
+  var shift={};shift[c.id]=days;
+  var alt=buildForecast({shift:shift});
+  var lb=minOf(base),la=minOf(alt);
+  var aff=INVOICES.filter(function(i){return i.cust===c.id;}).map(function(i){return {i:i,from:expDate(i),to:expDate(i,days)};});
+  var inWin=aff.filter(function(a){return a.from<=LAST;});
+  var moved=sum(inWin.map(function(a){return a.i.amount;}));
+  var invIn=sum(openInv().filter(function(x){return x.exp>TODAY&&x.exp<=LAST;}).map(function(x){return x.inv.amount;}));
+  var bB=base.filter(function(d){return d.balance<buf;}),bA=alt.filter(function(d){return d.balance<buf;});
+  var pay=EXPENSES.filter(function(e){return e.cat==='Payroll';})[0];
+  var pb=base.filter(function(d){return d.date===pay.date;})[0],pa=alt.filter(function(d){return d.date===pay.date;})[0];
+  var head;
+  if(!inWin.length)head='A '+days+'-day delay would not affect the next 30 days. '+c.name+"'s invoices are not expected before "+fd(LAST)+'.';
+  else if(la.balance<0)head='It would put you in the red: '+baht(la.balance)+' on '+fd(la.date)+'.';
+  else if(la.balance<lb.balance-1)head='It would push your lowest balance from '+baht(lb.balance)+' down to '+baht(la.balance)+' on '+fd(la.date)+'.';
+  else head='Your lowest balance would not change ('+baht(lb.balance)+' on '+fd(lb.date)+'), but you would hold '+baht(moved)+' less cash for '+days+' days.';
+  var first=inWin[0]||aff[0];
+  var nums=[
+    ['Customer',c.name+' ('+c.id+')'],
+    ['Invoices in the forecast',inWin.length?inWin.map(function(a){return a.i.id;}).join(', ')+' · '+baht(moved):'None'],
+    ['Expected payment, normally',fd(first.from)],
+    ['Expected payment, '+days+' days late',fd(first.to)+(first.to>LAST?' (after the forecast ends)':'')],
+    ['Lowest balance, normally',baht(lb.balance)+' on '+fd(lb.date)],
+    ['Lowest balance, if late',baht(la.balance)+' on '+fd(la.date),la.balance<buf?'warn':'good'],
+    ['Balance after payroll on '+fd(pay.date),baht(pb.balance)+' → '+baht(pa.balance),pa.balance<buf?'warn':''],
+    ['Days below buffer',bB.length+' → '+bA.length,bA.length>bB.length?'warn':'']
+  ];
+  var why=(assumedC?'You did not name a customer, so I used Customer A. ':'')+(assumedD?'You did not give a delay, so I used 14 days. ':'');
+  why+=c.name+' usually pays about '+c.avgLate+' days after the due date (risk score '+c.risk+'), so '+days+' days late would be unusual. ';
+  if(inWin.length)why+='Its '+baht(moved)+' is '+Math.round(moved/invIn*100)+'% of the customer payments you expect in the next 30 days ('+baht(invIn)+'), so cash is '+baht(moved)+' lower from '+fd(first.from)+' until '+(first.to>LAST?'after '+fd(LAST):fd(first.to))+'.';
+  var acts=[];
+  var rem=first.i.due>TODAY?addDays(first.i.due,-5):TODAY;if(rem<TODAY)rem=TODAY;
+  acts.push('Remind '+c.name+' on '+fd(rem)+(rem===TODAY?' (today)':' (five days before the due date)')+' and ask them to confirm a payment date in writing.');
+  var worse=inWin.length&&la.balance<buf&&(bA.length>bB.length||la.balance<lb.balance-1);
+  if(worse)acts.push('Line up a fallback before '+fd(bA.filter(function(d){return base[d.i].balance>=buf;})[0]?bA.filter(function(d){return base[d.i].balance>=buf;})[0].date:la.date)+': ask a supplier to move a bill, or arrange a short overdraft with your bank.');
+  else acts.push('You can absorb this. Payroll on '+fd(pay.date)+' is still covered with '+baht(pa.balance)+' left afterwards, so no spending cuts are needed.'+(inWin.length&&lb.date<first.from?' Your existing low point on '+fd(lb.date)+' is unaffected, because this payment was never expected before '+fd(first.from)+'.':''));
+  if(inWin.length)acts.push('Consider a 2% early-payment discount ('+baht(moved*0.02)+') if it brings '+baht(moved)+' in by the due date. Compare that cost with what an overdraft would cost you.');
+  acts.push('For the next large order from '+c.name+', ask for a 30% deposit so one late invoice cannot leave a gap.');
+  return {head:head,nums:nums,why:why,acts:acts};
+}
+function aRisk(){
+  var rows=CUSTOMERS.map(function(c){
+    var inv=INVOICES.filter(function(i){return i.cust===c.id;});
+    return {c:c,open:sum(inv.map(function(i){return i.amount;})),late:Math.max.apply(null,inv.map(function(i){return Math.max(0,diffDays(TODAY,i.due));}))};
+  }).sort(function(a,b){return b.c.risk-a.c.risk;});
+  var hi=rows.filter(function(r){return r.c.risk>=70;}),watch=rows.filter(function(r){return r.c.risk>=50&&r.c.risk<70;});
+  var tot=sum(rows.map(function(r){return r.open;})),hiOpen=sum(hi.map(function(r){return r.open;}));
+  var pct=Math.round(hiOpen/tot*100);
+  var nums=hi.concat(watch).map(function(r){return [r.c.name+' ('+r.c.id+')','risk '+r.c.risk+' · '+baht(r.open)+' open · pays ~'+r.c.avgLate+' days late',r.c.risk>=70?'crit':'warn'];});
+  nums.push(['Total receivables',baht(tot)]);
+  nums.push(['Held by high-risk customers',baht(hiOpen)+' ('+pct+'%)','crit']);
+  var names=hi.map(function(r){return r.c.name;}).join(' and ');
+  var why='The sample risk score reflects how late each customer usually pays, how overdue their open invoices are and how much they owe. '+names+' hold '+baht(hiOpen)+' of your '+baht(tot)+' in receivables'+(hi.every(function(r){return r.late>0;})?', and each already has an overdue invoice.':'.');
+  var acts=[
+    'Set a credit limit for each high-risk customer and stop new credit orders until their overdue invoices are paid.',
+    'Ask for a 30% deposit or payment on delivery for new orders from '+(hi[0]?hi[0].c.name:'high-risk customers')+'.',
+    'Shorten payment terms from 30 days to 14 days for the "watch" accounts.',
+    'Spread sales across more customers. No single account should hold more than about a quarter of your receivables.'
+  ];
+  return {head:hi.length+' customers are high risk, and they hold '+pct+'% of what you are owed.',nums:nums,why:why,acts:acts};
+}
+function aBills(){
+  var list=EXPENSES.slice().sort(function(a,b){return a.date<b.date?-1:1;});
+  var total=sum(list.map(function(e){return e.amount;})),next7=sum(list.filter(function(e){return e.date<=addDays(TODAY,7);}).map(function(e){return e.amount;}));
+  var flex=list.filter(function(e){return e.flex;}),flexTot=sum(flex.map(function(e){return e.amount;}));
+  var pay=list.filter(function(e){return e.cat==='Payroll';})[0];
+  var nums=list.map(function(e){return [fd(e.date)+' · '+e.name,baht(e.amount),e.flex?'warn':''];});
+  nums.push(['Total due in 30 days',baht(total)]);
+  nums.push(['Can be negotiated (supplier)',baht(flexTot),'warn']);
+  nums.push(['Fixed deadlines',baht(total-flexTot)]);
+  var weeks=Math.max(1,Math.ceil(diffDays(pay.date,TODAY)/7));
+  return {
+    head:baht(next7)+' is due in the next 7 days, and '+baht(flexTot)+' of the '+baht(total)+' due in 30 days has room to move.',
+    nums:nums,
+    why:'Payroll, tax, social security, loan and rent carry penalties or fixed dates, so they come first. Supplier bills are the only ones with room to negotiate: '+flex.map(function(e){return e.name+' on '+fd(e.date);}).join(' and ')+'. The earliest bills land on '+fd(list[0].date)+', before any expected customer payment.',
+    acts:[
+      'Ask Ping Valley Green Beans Co. to move or split the '+baht(flex[0].amount)+' payment due '+fd(flex[0].date)+'.',
+      'Pay VAT and social security on their due dates, since late payment adds penalties.',
+      'Order the planned restock ('+baht(flex[1].amount)+') in two smaller batches, and place the second one only after the overdue invoices are paid.',
+      'Set aside about '+baht(Math.ceil(pay.amount/weeks/1000)*1000)+' a week for payroll on '+fd(pay.date)+'.'
+    ]};
+}
+function aVat(){
+  var out=sum(state.ledger.filter(function(t){return t.amount>0;}).map(vatOf));
+  var inn=sum(state.ledger.filter(function(t){return t.amount<0;}).map(vatOf));
+  var pend=sum(state.ledger.filter(function(t){return t.amount<0&&t.status==='pending';}).map(vatOf));
+  var net=out-inn,sep=EXPENSES.filter(function(e){return e.cat==='Tax';})[0];
+  var noTax=state.ledger.filter(function(t){return t.amount<0&&t.noVat;}).map(function(t){return t.vendor;});
+  return {
+    head:'Your October ledger shows about '+baht(net)+' of net VAT so far, plus '+baht(sep.amount)+' for September due on '+fd(sep.date)+'.',
+    nums:[['VAT collected on sales',baht(out)],['VAT paid on purchases',baht(inn)],['Net VAT so far this month',baht(net),'warn'],['Input VAT sitting in pending entries',baht(pend)],['September VAT payment ('+fd(sep.date)+')',baht(sep.amount)]],
+    why:'Net VAT is what you collected from customers minus the VAT you paid on purchases. '+(noTax.length?noTax.join(' and ')+' carry no VAT in this sample, so they give no credit. ':'')+'Pending entries are not yet reviewed, so their VAT may still change.',
+    acts:[
+      'Approve or correct the pending entries so '+baht(pend)+' of input VAT is counted properly.',
+      'Ask suppliers for a full tax invoice every time, because a plain receipt may not support a VAT credit.',
+      'Move the estimated VAT into a separate savings account each week, so it is not spent as operating cash.',
+      'Confirm filing dates and final amounts with your accountant before you pay.'
+    ]};
+}
+function aFallback(){
+  var fc=state.fc,lo=minOf(fc),od=openInv().filter(function(x){return x.late>0;});
+  var odTot=sum(od.map(function(x){return x.inv.amount;}));
+  return {
+    head:'Here is where you stand today.',
+    nums:[['Cash balance',baht(fc[0].balance)],['Lowest balance in 30 days',baht(lo.balance)+' on '+fd(lo.date),lo.balance<state.buffer?'warn':'good'],['Overdue invoices',baht(odTot)+' ('+od.length+')','crit'],['Bills due in 30 days',baht(sum(EXPENSES.map(function(e){return e.amount;})))]],
+    why:'I answer questions about cash, customers, bills and VAT from the ledger, invoices and bills on this page. I did not match your question to one of those topics.',
+    acts:['Ask "Will I have enough cash this month?"','Ask "Which customer should I collect from first?"','Ask "What should I do if Customer A pays 2 weeks late?"']
+  };
+}
+function answer(raw){
+  var q=raw.toLowerCase();
+  var c=findCustomer(q),d=parseDays(q);
+  if(/\blate\b|delay|slow|won'?t pay|doesn'?t pay|default|what if/.test(q)&&(c||d)){
+    return aScenario(c||cust('A'),d||14,!c,!d);
+  }
+  if(/collect|chase|which customer|who owes|overdue|reminder|follow up|first/.test(q))return aCollect();
+  if(/risk|reliab|credit|bad debt|trust/.test(q))return aRisk();
+  if(/\bvat\b|\btax\b|pp ?30/.test(q))return aVat();
+  if(/\bbill|expense|supplier|payroll|\brent\b|upcoming|can wait|delay pay/.test(q))return aBills();
+  if(/cash|enough|afford|run out|short|balance|runway|month|survive|forecast|buffer|lowest/.test(q))return aCash();
+  return aFallback();
+}
+/*MODEL-END*/
+
+/* ---------- DOM ---------- */
+var $=function(s,r){return (r||document).querySelector(s);};
+var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));};
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+var ui={filter:'all',queue:[],uid:0,analyzing:false,poolIdx:0,fresh:{}};
+var SAMPLE_QUEUE=[
+  {name:'tops_receipt_1013.jpg',kind:'Receipt'},
+  {name:'lazada_seller_fees_oct.pdf',kind:'Invoice'},
+  {name:'homepro_tax_invoice_1012.jpg',kind:'Invoice'},
+  {name:'shopee_payout_1013.png',kind:'Sales statement'}
+];
+function loadSamples(){ui.queue=SAMPLE_QUEUE.map(function(s){return {id:++ui.uid,name:s.name,kind:s.kind,sample:true,url:null};});}
+var ICON='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10v18l-2.5-1.5L12 21l-2.5-1.5L7 21z"/><path d="M10 8h4M10 12h4"/></svg>';
+function cbadge(c){return '<span class="cb">'+c.id+'</span>'+esc(c.name);}
+
+function renderQueue(){
+  var n=ui.queue.length;
+  $('#q-count').textContent=n?n+(n===1?' file':' files'):'';
+  $('#queue').innerHTML=n?ui.queue.map(function(q){
+    return '<li class="q-item"><span class="thumb">'+(q.url?'<img src="'+q.url+'" alt="">':ICON)+'</span><span class="q-name"><b>'+esc(q.name)+'</b><small>'+esc(q.kind)+(q.sample?' · sample file':'')+'</small></span><button class="x" type="button" data-rm="'+q.id+'" aria-label="Remove '+esc(q.name)+'">×</button></li>';
+  }).join(''):'<li class="q-empty"><span>No files in the queue. Add some on the left, or load the sample set.</span><button class="btn ghost" type="button" id="load-samples">Load 4 sample receipts</button></li>';
+  $('#analyze').disabled=!n||ui.analyzing;
+}
+function addFiles(list){
+  var files=Array.prototype.slice.call(list).filter(function(f){return /^image\//.test(f.type)||f.type==='application/pdf'||/\.(pdf|jpe?g|png|webp|heic)$/i.test(f.name);});
+  var res=$('#result');
+  if(!files.length){res.hidden=false;res.style.background='var(--warn-soft)';res.style.color='var(--warn)';res.textContent='Those files are not images or PDFs. Choose JPG, PNG or PDF files.';return;}
+  res.hidden=true;res.removeAttribute('style');
+  if(ui.queue.every(function(q){return q.sample;}))ui.queue=[];
+  files.forEach(function(f){
+    var pdf=f.type==='application/pdf'||/\.pdf$/i.test(f.name),url=null;
+    if(!pdf&&/^image\//.test(f.type)){try{url=URL.createObjectURL(f);}catch(e){}}
+    ui.queue.push({id:++ui.uid,name:f.name,kind:pdf?'PDF document':'Photo',url:url});
+  });
+  renderQueue();
+}
+function analyze(){
+  if(ui.analyzing||!ui.queue.length)return;
+  ui.analyzing=true;
+  var files=ui.queue.slice(),n=files.length,dur=Math.max(2600,n*900),t0=Date.now();
+  var steps=['Reading the image','Extracting vendor, date and total','Splitting out 7% VAT','Suggesting a category'];
+  $('#result').hidden=true;$('#progress').hidden=false;$('#analyze').disabled=true;
+  var timer=setInterval(function(){
+    var p=Math.min(1,(Date.now()-t0)/dur),idx=Math.min(n-1,Math.floor(p*n));
+    $('#fill').style.width=(p*100).toFixed(1)+'%';
+    $('#track').setAttribute('aria-valuenow',String(Math.round(p*100)));
+    $('#prog-text').textContent=Math.round(p*100)+'% · '+steps[Math.floor((p*n*steps.length)%steps.length)]+' · '+files[idx].name+' ('+(idx+1)+' of '+n+')';
+    if(p>=1){clearInterval(timer);finishAnalysis(files);}
+  },70);
+}
+function finishAnalysis(files){
+  var maxId=Math.max.apply(null,state.ledger.map(function(t){return t.id;}));
+  files.forEach(function(f,k){
+    var p=POOL[(ui.poolIdx+k)%POOL.length],t={id:++maxId,date:p.date,vendor:p.vendor,amount:p.amount,cat:p.cat,noVat:p.noVat,status:'pending'};
+    state.ledger.push(t);ui.fresh[t.id]=true;
+    if(files[k].url){try{URL.revokeObjectURL(files[k].url);}catch(e){}}
+  });
+  ui.poolIdx+=files.length;ui.queue=[];ui.analyzing=false;
+  $('#progress').hidden=true;
+  var res=$('#result');res.removeAttribute('style');res.hidden=false;
+  res.innerHTML='Added '+files.length+(files.length===1?' transaction':' transactions')+' to the ledger as Pending. <a href="#ledger" data-go>Review them</a>, then choose Approve All.';
+  $('#ledger-msg').textContent='';
+  refresh();
+}
+function approveAll(){
+  var n=0;state.ledger.forEach(function(t){if(t.status==='pending'){t.status='approved';n++;}});
+  $('#ledger-msg').textContent=n?'Approved '+n+(n===1?' entry.':' entries.'):'';
+  refresh();
+}
+function renderLedger(){
+  var L=state.ledger,pend=L.filter(function(t){return t.status==='pending';});
+  $('#c-all').textContent=L.length;$('#c-pending').textContent=pend.length;$('#c-approved').textContent=L.length-pend.length;
+  $$('#seg button').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.f===ui.filter));});
+  var rows=L.filter(function(t){return ui.filter==='all'||t.status===ui.filter;}).sort(function(a,b){return a.date<b.date?1:a.date>b.date?-1:b.id-a.id;});
+  $('#ledger-body').innerHTML=rows.length?rows.map(function(t){
+    var v=vatOf(t);
+    return '<tr'+(ui.fresh[t.id]?' class="fresh"':'')+'><td class="num" style="white-space:nowrap">'+fd(t.date)+'</td><td>'+esc(t.vendor)+'</td>'+
+      '<td class="r num '+(t.amount<0?'neg':'pos')+'">'+sbaht(t.amount)+'</td><td class="r num">'+(v?baht(v):'<span class="note">–</span>')+'</td>'+
+      '<td class="cat">'+esc(t.cat)+'</td><td style="white-space:nowrap">'+(t.status==='pending'?'<span class="pill warn">Pending</span> <button class="linkbtn" type="button" data-ap="'+t.id+'">Approve</button>':'<span class="pill good">Approved</span>')+'</td></tr>';
+  }).join(''):'<tr><td colspan="6" class="note" style="padding:24px 16px">Nothing here yet. Analyze some receipts to fill the ledger.</td></tr>';
+  var net=sum(L.map(function(t){return t.amount;}));
+  $('#ledger-foot').innerHTML='<span>'+L.length+' entries · '+pend.length+' pending ('+baht(sum(pend.map(function(t){return t.amount;})))+')</span><span>Your cash balance includes pending entries, because the money has already moved. Net this month: '+(net<0?'−':'+')+baht(net)+'</span>';
+  $('#approve-all').disabled=!pend.length;
+}
+function pill(cls,txt){return '<span class="pill '+cls+'">'+txt+'</span>';}
+function renderKPIs(){
+  var fc=state.fc,now=fc[0].balance,lo=minOf(fc),buf=state.buffer;
+  var bills=EXPENSES.filter(function(e){return e.date<=LAST;}),billsTot=sum(bills.map(function(e){return e.amount;}));
+  var next=bills.slice().sort(function(a,b){return a.date<b.date?-1:1;})[0];
+  var rec=openInv().filter(function(x){return x.exp>TODAY&&x.exp<=LAST;}),recTot=sum(rec.map(function(x){return x.inv.amount;}));
+  var salesTot=sum(fc.slice(1).map(function(d){return d.sales;}));
+  var net=now-OPENING;
+  var loPill=lo.balance<0?pill('crit','Shortfall'):lo.balance<buf?pill('warn','Below '+kb(buf)+' buffer'):pill('good','Above buffer');
+  $('#kpis').innerHTML=
+    '<div class="card kpi primary"><span class="lbl">Cash balance</span><span class="val">'+(now<0?'−':'')+baht(now)+'</span><span class="sub">'+(net<0?'−':'+')+baht(net)+' since the '+baht(OPENING)+' opening on 1 Oct</span></div>'+
+    '<div class="card kpi"><span class="lbl">Upcoming expenses</span><span class="val">'+baht(billsTot)+'</span><span class="sub">'+bills.length+' bills in 30 days · next on '+fd(next.date)+'</span></div>'+
+    '<div class="card kpi"><span class="lbl">Expected incoming</span><span class="val">'+baht(recTot+salesTot)+'</span><span class="sub">Invoices '+baht(recTot)+' · estimated sales '+baht(salesTot)+'</span></div>'+
+    '<div class="card kpi"><span class="lbl">Lowest projected balance</span><span class="val">'+(lo.balance<0?'−':'')+baht(lo.balance)+'</span><span class="sub">'+fd(lo.date)+' &nbsp;'+loPill+'</span></div>';
+}
+function niceTicks(min,max,n){
+  var span=max-min,raw=span/n,mag=Math.pow(10,Math.floor(Math.log10(raw))),norm=raw/mag;
+  var step=(norm<1.5?1:norm<3?2:norm<7?5:10)*mag,lo=Math.floor(min/step)*step,hi=Math.ceil(max/step)*step,t=[];
+  for(var v=lo;v<=hi+step/2;v+=step)t.push(Math.round(v));
+  return t;
+}
+var chartGeo=null;
+function drawChart(){
+  var wrap=$('#chart'),w=Math.max(280,Math.floor(wrap.clientWidth)||600),h=w<560?250:320;
+  var fc=state.fc,buf=state.buffer,m={l:w<560?46:56,r:16,t:20,b:38};
+  var pw=w-m.l-m.r,ph=h-m.t-m.b,bals=fc.map(function(d){return d.balance;});
+  var ticks=niceTicks(Math.min(0,Math.min.apply(null,bals)),Math.max(buf*1.2,Math.max.apply(null,bals))*1.04,4);
+  var y0=ticks[0],y1=ticks[ticks.length-1];
+  var X=function(i){return m.l+pw*i/HORIZON;},Y=function(v){return m.t+ph*(1-(v-y0)/(y1-y0));};
+  var lo=minOf(fc),end=fc[fc.length-1];
+  $('#chart-sub').textContent=fd(addDays(TODAY,1))+' to '+fd(LAST)+' · projected end-of-day balance';
+  var s='<svg class="ch" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'" role="img" aria-label="Projected cash balance for the next 30 days. Lowest point '+baht(lo.balance)+' on '+fd(lo.date)+'. Ends at '+baht(end.balance)+' on '+fd(end.date)+'.">';
+  var yb=Y(buf),yz=Y(y0);
+  s+='<defs><clipPath id="clipBelow"><rect x="'+m.l+'" y="'+yb+'" width="'+pw+'" height="'+Math.max(0,yz-yb)+'"/></clipPath></defs>';
+  ticks.forEach(function(t){s+='<line class="'+(t===0?'zero':'grid')+'" x1="'+m.l+'" x2="'+(w-m.r)+'" y1="'+Y(t)+'" y2="'+Y(t)+'"/><text x="'+(m.l-8)+'" y="'+(Y(t)+4)+'" text-anchor="end">'+(t===0?'฿0':kb(t))+'</text>';});
+  var xi=w<560?[0,10,20,30]:[0,5,10,15,20,25,30];
+  xi.forEach(function(i){s+='<text x="'+X(i)+'" y="'+(h-6)+'" text-anchor="'+(i===0?'start':i===HORIZON?'end':'middle')+'">'+fd(fc[i].date)+'</text>';});
+  s+='<rect class="band" x="'+m.l+'" y="'+yb+'" width="'+pw+'" height="'+Math.max(0,yz-yb)+'"/>';
+  var pts=fc.map(function(d){return X(d.i).toFixed(1)+','+Y(d.balance).toFixed(1);}),line='M'+pts.join('L');
+  s+='<path class="area" d="'+line+'L'+X(HORIZON)+','+yz+'L'+X(0)+','+yz+'Z"/>';
+  s+='<path class="ln" d="'+line+'"/><path class="ln-crit" d="'+line+'" clip-path="url(#clipBelow)"/>';
+  s+='<line class="buf" x1="'+m.l+'" x2="'+(w-m.r)+'" y1="'+yb+'" y2="'+yb+'"/><text class="buf-t" x="'+(w-m.r)+'" y="'+(yb-6)+'">Safety buffer '+kb(buf)+'</text>';
+  var my=yz+9;
+  fc.forEach(function(d){
+    var hasIn=d.items.some(function(i){return i.kind==='in';}),hasOut=d.items.some(function(i){return i.kind==='out';}),x=X(d.i);
+    if(hasIn)s+='<path class="mk-in" d="M'+(x+(hasOut?-5:0))+','+(my-5)+'l4,8h-8z"/>';
+    if(hasOut)s+='<path class="mk-out" d="M'+(x+(hasIn?5:0))+','+(my+4)+'l-4,-8h8z"/>';
+  });
+  var lx=X(lo.i),anchor=lx>w-110?'end':'start',lxo=anchor==='end'?-8:8;
+  s+='<circle class="dot" cx="'+X(0)+'" cy="'+Y(fc[0].balance)+'" r="4.5" fill="var(--accent)"/>';
+  s+='<circle class="dot" cx="'+lx+'" cy="'+Y(lo.balance)+'" r="5" fill="'+(lo.balance<buf?'var(--crit)':'var(--accent)')+'"/>';
+  s+='<text class="halo" x="'+(lx+lxo)+'" y="'+(Y(lo.balance)+16)+'" text-anchor="'+anchor+'">Low '+kb(lo.balance)+' · '+fd(lo.date)+'</text>';
+  s+='<line id="g-line" x1="0" x2="0" y1="'+m.t+'" y2="'+yz+'" stroke="var(--fg-3)" stroke-width="1" visibility="hidden"/><circle id="g-dot" r="4.5" class="dot" fill="var(--accent)" visibility="hidden"/>';
+  s+='<rect id="ov" x="'+m.l+'" y="'+m.t+'" width="'+pw+'" height="'+ph+'" fill="transparent"/></svg><div class="tip" id="tip"></div>';
+  wrap.innerHTML=s;
+  chartGeo={m:m,pw:pw,w:w,X:X,Y:Y};
+  var ov=$('#ov'),svg=$('svg.ch',wrap);
+  function show(e){
+    var r=svg.getBoundingClientRect(),i=Math.max(0,Math.min(HORIZON,Math.round((e.clientX-r.left-m.l)/pw*HORIZON))),d=state.fc[i];
+    var gl=$('#g-line'),gd=$('#g-dot'),tip=$('#tip');
+    gl.setAttribute('x1',X(i));gl.setAttribute('x2',X(i));gl.setAttribute('visibility','visible');
+    gd.setAttribute('cx',X(i));gd.setAttribute('cy',Y(d.balance));gd.setAttribute('visibility','visible');
+    var rows=d.items.map(function(it){return '<div class="r"><span>'+esc(it.label)+'</span><span class="'+it.kind+'">'+(it.kind==='in'?'+':'−')+baht(it.amount)+'</span></div>';}).join('');
+    if(i>0)rows+='<div class="r"><span>Estimated sales</span><span class="in">+'+baht(d.sales)+'</span></div><div class="r"><span>Running costs</span><span class="out">−'+baht(MISC)+'</span></div>';
+    tip.innerHTML='<b class="d">'+(i===0?'Today · '+fdw(d.date):fdw(d.date))+'</b><b class="v">'+(d.balance<0?'−':'')+baht(d.balance)+'</b>'+rows;
+    tip.style.visibility='visible';
+    var tw=tip.offsetWidth,left=X(i)+14;if(left+tw>w-4)left=X(i)-tw-14;tip.style.left=Math.max(4,left)+'px';
+  }
+  function hide(){['#g-line','#g-dot'].forEach(function(s){var el=$(s);if(el)el.setAttribute('visibility','hidden');});var t=$('#tip');if(t)t.style.visibility='hidden';}
+  ov.addEventListener('pointermove',show);ov.addEventListener('pointerdown',show);ov.addEventListener('pointerleave',hide);
+}
+function dateBlock(iso){var p=iso.split('-').map(Number);return '<div class="li-date"><b>'+p[2]+'</b><span>'+MONTHS[p[1]-1]+'</span></div>';}
+function renderLists(){
+  var bills=EXPENSES.filter(function(e){return e.date<=LAST;}).sort(function(a,b){return a.date<b.date?-1:1;});
+  $('#up-sub').textContent=baht(sum(bills.map(function(e){return e.amount;})))+' in 30 days';
+  $('#upcoming').innerHTML=bills.map(function(e){
+    var n=diffDays(e.date,TODAY);
+    return '<li class="li">'+dateBlock(e.date)+'<div><div class="li-t">'+esc(e.name)+'</div><div class="li-s">'+esc(e.cat)+' · '+(n<=0?'today':'in '+n+(n===1?' day':' days'))+(n<=3?' · '+'due soon':'')+'</div></div><div class="li-a">'+baht(e.amount)+'</div></li>';
+  }).join('');
+  var all=openInv().sort(function(a,b){return a.exp<b.exp?-1:1;});
+  var rec=all.filter(function(x){return x.exp>TODAY&&x.exp<=LAST;}),later=all.filter(function(x){return x.exp>LAST;});
+  var salesTot=sum(state.fc.slice(1).map(function(d){return d.sales;})),recTot=sum(rec.map(function(x){return x.inv.amount;}));
+  $('#in-sub').textContent=baht(recTot+salesTot)+' in 30 days';
+  var html=rec.map(function(x){
+    return '<li class="li">'+dateBlock(x.exp)+'<div><div class="li-t">'+cbadge(x.cust)+'</div><div class="li-s">'+x.inv.id+' · due '+fd(x.inv.due)+(x.late?' · '+pill('crit',x.late+' days overdue'):'')+'</div></div><div class="li-a in">+'+baht(x.inv.amount)+'</div></li>';
+  }).join('');
+  html+='<li class="li"><div class="li-date"><b>Daily</b><span>sales</span></div><div><div class="li-t">Walk-in and online sales (estimate)</div><div class="li-s">'+baht(SALES.weekday)+' on weekdays · '+baht(SALES.weekend)+' on weekends</div></div><div class="li-a in">+'+baht(salesTot)+'</div></li>';
+  if(later.length)html+='<li class="note" style="padding-top:10px">Not counted: '+later.map(function(x){return x.inv.id+' ('+baht(x.inv.amount)+', expected '+fd(x.exp)+')';}).join(', ')+', after the forecast ends.</li>';
+  $('#incoming').innerHTML=html;
+  var od=openInv().filter(function(x){return x.late>0;}).map(function(x){x.score=x.inv.amount*x.cust.risk/100;return x;}).sort(function(a,b){return b.score-a.score;});
+  var odTot=sum(od.map(function(x){return x.inv.amount;}));
+  $('#od-sub').textContent=od.length+' invoices · ranked by amount × risk';
+  $('#overdue').innerHTML=od.length?od.map(function(x,i){
+    return '<tr><td><span class="rank'+(i===0?' first':'')+'">'+(i+1)+'</span></td><td class="num">'+x.inv.id+'<div class="li-s">Due '+fd(x.inv.due)+'</div></td><td><span style="display:inline-flex;align-items:center">'+cbadge(x.cust)+'</span></td><td class="r num">'+x.late+'</td><td class="r num"><b>'+baht(x.inv.amount)+'</b></td></tr>';
+  }).join(''):'<tr><td colspan="5" class="note" style="padding:20px 16px">No overdue invoices.</td></tr>';
+  $('#od-foot').innerHTML='<span>Total overdue</span><b style="color:var(--crit)">'+baht(odTot)+'</b>';
+  var rows=CUSTOMERS.map(function(c){
+    var inv=INVOICES.filter(function(i){return i.cust===c.id;});
+    return {c:c,open:sum(inv.map(function(i){return i.amount;})),late:Math.max.apply(null,inv.map(function(i){return Math.max(0,diffDays(TODAY,i.due));}))};
+  }).filter(function(r){return r.c.risk>=50;}).sort(function(a,b){return b.c.risk-a.c.risk;});
+  $('#risk').innerHTML=rows.map(function(r){
+    var hi=r.c.risk>=70;
+    return '<div class="risk-row"><div class="risk-name">'+cbadge(r.c)+'</div>'+pill(hi?'crit':'warn',hi?'High risk':'Watch')+
+      '<div class="risk-meter"><div class="meter"><i class="'+(hi?'crit':'')+'" style="width:'+r.c.risk+'%"></i></div><span>'+r.c.risk+'</span></div>'+
+      '<div class="risk-meta">'+baht(r.open)+' open · pays about '+r.c.avgLate+' days late'+(r.late?' · oldest invoice '+r.late+' days overdue':'')+'</div></div>';
+  }).join('');
+}
+function renderSide(){
+  $('#reads').innerHTML='<li><span>Ledger entries</span><b>'+state.ledger.length+'</b></li><li><span>Customer invoices</span><b>'+INVOICES.length+'</b></li><li><span>Customers</span><b>'+CUSTOMERS.length+'</b></li><li><span>Scheduled bills</span><b>'+EXPENSES.length+'</b></li><li><span>Safety buffer</span><b>'+baht(state.buffer)+'</b></li>';
+}
+function refresh(){
+  state.fc=buildForecast();
+  renderQueue();renderLedger();renderKPIs();drawChart();renderLists();renderSide();
+}
+
+/* chat */
+var QUESTIONS=['Will I have enough cash this month?','Which customer should I collect from first?','What should I do if Customer A pays 2 weeks late?','Which bills can wait?','How much VAT am I building up?','Who are my riskiest customers?'];
+function renderAnswer(a){
+  return '<h4>'+a.head+'</h4><div class="lbl">Numbers</div><dl class="nums">'+a.nums.map(function(n){return '<div><dt>'+n[0]+'</dt><dd class="'+(n[2]||'')+'">'+n[1]+'</dd></div>';}).join('')+'</dl><div class="lbl">Why</div><p>'+a.why+'</p><div class="lbl">What to do</div><ol>'+a.acts.map(function(x){return '<li>'+x+'</li>';}).join('')+'</ol><div class="foot">'+footer()+'</div>';
+}
+function addMsg(cls,html){var chat=$('#chat'),d=document.createElement('div');d.className='msg '+cls;d.innerHTML=html;chat.appendChild(d);return d;}
+function ask(text){
+  text=text.trim();if(!text)return;
+  var chat=$('#chat');
+  var u=addMsg('user',esc(text));chat.scrollTop=chat.scrollHeight;
+  var t=addMsg('bot','<span class="dots" aria-label="Thinking"><i></i><i></i><i></i></span>');chat.scrollTop=chat.scrollHeight;
+  setTimeout(function(){t.innerHTML=renderAnswer(answer(text));chat.scrollTop=t.offsetTop-chat.offsetTop-8;},520);
+}
+function initChat(){
+  addMsg('bot','<p>Hello. I answer from the ledger, invoices, bills and forecast on this page. Ask me about cash, customers, bills or VAT.</p>');
+  addMsg('user',esc(QUESTIONS[0]));
+  addMsg('bot',renderAnswer(answer(QUESTIONS[0])));
+  $('#chips').innerHTML=QUESTIONS.map(function(q){return '<button class="chip" type="button">'+esc(q)+'</button>';}).join('');
+}
+
+/* events */
+document.addEventListener('click',function(e){
+  var a=e.target.closest('a[data-go]');
+  if(a){e.preventDefault();var el=document.getElementById(a.getAttribute('href').slice(1));if(el)el.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});return;}
+  var rm=e.target.closest('[data-rm]');
+  if(rm){var id=+rm.dataset.rm;ui.queue=ui.queue.filter(function(q){if(q.id===id&&q.url){try{URL.revokeObjectURL(q.url);}catch(x){}}return q.id!==id;});renderQueue();return;}
+  if(e.target.id==='load-samples'){loadSamples();renderQueue();return;}
+  var ap=e.target.closest('[data-ap]');
+  if(ap){var id2=+ap.dataset.ap;state.ledger.forEach(function(t){if(t.id===id2)t.status='approved';});refresh();return;}
+  var seg=e.target.closest('#seg button');
+  if(seg){ui.filter=seg.dataset.f;renderLedger();return;}
+  var chip=e.target.closest('.chip');
+  if(chip){ask(chip.textContent);return;}
+});
+$('#file-input').addEventListener('change',function(e){addFiles(e.target.files);e.target.value='';});
+var drop=$('#drop');
+['dragenter','dragover'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.add('over');});});
+['dragleave','drop'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove('over');});});
+drop.addEventListener('drop',function(e){if(e.dataTransfer&&e.dataTransfer.files)addFiles(e.dataTransfer.files);});
+$('#analyze').addEventListener('click',analyze);
+$('#approve-all').addEventListener('click',approveAll);
+$('#buffer').addEventListener('input',function(e){var v=parseInt(e.target.value,10);state.buffer=isNaN(v)||v<0?0:v;renderKPIs();drawChart();renderSide();});
+$('#ask-form').addEventListener('submit',function(e){e.preventDefault();var i=$('#ask');ask(i.value);i.value='';});
+
+loadSamples();
+state.fc=buildForecast();
+initChat();
+refresh();
+if(window.ResizeObserver){var lastW=0;new ResizeObserver(function(){var w=$('#chart').clientWidth;if(w&&Math.abs(w-lastW)>1){lastW=w;drawChart();}}).observe($('#chart'));}
+else window.addEventListener('resize',drawChart);
+})();
+</script>
+
+</body></html>
