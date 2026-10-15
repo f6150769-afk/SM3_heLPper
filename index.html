@@ -1042,6 +1042,7 @@ supabaseClient
       status.textContent = 'Could not check session: ' + error.message;
       return;
     }
+     
 
     const user = data.session && data.session.user;
     if (user) {
