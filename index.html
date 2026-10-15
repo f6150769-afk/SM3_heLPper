@@ -992,6 +992,114 @@ supabaseClient
     }
   });
 </script>
+   
+<div id="auth-widget" style="position:fixed;top:16px;right:16px;z-index:9999;font-family:Arial,sans-serif;">
+  <button id="auth-open" style="padding:10px 16px;border:0;border-radius:8px;background:#2563eb;color:white;cursor:pointer;">
+    Login / Sign up
+  </button>
 
+  <div id="auth-panel" style="display:none;width:300px;margin-top:8px;padding:18px;background:white;color:#111827;border:1px solid #ddd;border-radius:12px;box-shadow:0 8px 28px #0002;">
+    <h3 style="margin:0 0 14px;">Account</h3>
+    <form id="auth-form">
+      <label for="auth-email">Email</label>
+      <input id="auth-email" type="email" required autocomplete="email"
+        style="box-sizing:border-box;width:100%;padding:10px;margin:6px 0 12px;">
+
+      <label for="auth-password">Password</label>
+      <input id="auth-password" type="password" required minlength="6" autocomplete="current-password"
+        style="box-sizing:border-box;width:100%;padding:10px;margin:6px 0 12px;">
+
+      <button type="button" id="auth-signin" style="padding:9px 12px;">Sign in</button>
+      <button type="button" id="auth-signup" style="padding:9px 12px;">Sign up</button>
+    </form>
+
+    <p id="auth-status" role="status" style="font-size:13px;overflow-wrap:anywhere;"></p>
+    <button id="auth-signout" type="button" style="display:none;padding:9px 12px;">Sign out</button>
+    <button id="auth-close" type="button" style="padding:9px 12px;">Close</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const openBtn = document.getElementById('auth-open');
+  const panel = document.getElementById('auth-panel');
+  const status = document.getElementById('auth-status');
+  const signOutBtn = document.getElementById('auth-signout');
+  const emailInput = document.getElementById('auth-email');
+  const passwordInput = document.getElementById('auth-password');
+
+  openBtn.addEventListener('click', function () {
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  });
+
+  document.getElementById('auth-close').addEventListener('click', function () {
+    panel.style.display = 'none';
+  });
+
+  async function updateAuthUI() {
+    const { data, error } = await supabaseClient.auth.getSession();
+    if (error) {
+      status.textContent = 'Could not check session: ' + error.message;
+      return;
+    }
+
+    const user = data.session && data.session.user;
+    if (user) {
+      openBtn.textContent = 'Signed in';
+      status.textContent = 'Signed in as ' + user.email;
+      signOutBtn.style.display = 'inline-block';
+    } else {
+      openBtn.textContent = 'Login / Sign up';
+      status.textContent = 'Sign in or create an account.';
+      signOutBtn.style.display = 'none';
+    }
+  }
+
+  document.getElementById('auth-signin').addEventListener('click', async function () {
+    status.textContent = 'Signing in...';
+    const { error } = await supabaseClient.auth.signInWithPassword({
+      email: emailInput.value.trim(),
+      password: passwordInput.value
+    });
+    status.textContent = error ? 'Sign-in failed: ' + error.message : 'Signed in successfully.';
+    if (!error) {
+      passwordInput.value = '';
+      await updateAuthUI();
+    }
+  });
+
+  document.getElementById('auth-signup').addEventListener('click', async function () {
+    status.textContent = 'Creating account...';
+    const { data, error } = await supabaseClient.auth.signUp({
+      email: emailInput.value.trim(),
+      password: passwordInput.value
+    });
+
+    if (error) {
+      status.textContent = 'Sign-up failed: ' + error.message;
+    } else if (data.session) {
+      passwordInput.value = '';
+      status.textContent = 'Account created and signed in.';
+      await updateAuthUI();
+    } else {
+      status.textContent = 'Account request submitted. Check your email to confirm the account, then sign in.';
+      passwordInput.value = '';
+    }
+  });
+
+  signOutBtn.addEventListener('click', async function () {
+    const { error } = await supabaseClient.auth.signOut();
+    status.textContent = error ? 'Sign-out failed: ' + error.message : 'Signed out.';
+    await updateAuthUI();
+  });
+
+  supabaseClient.auth.onAuthStateChange(function () {
+    updateAuthUI();
+  });
+
+  updateAuthUI();
+})();
+</script>
+   
 </body>
 </html>
