@@ -979,7 +979,18 @@ else window.addEventListener('resize',drawChart);
   const supabaseClient = window.supabase.createClient(
     SUPABASE_URL,
     SUPABASE_PUBLISHABLE_KEY
-  );
+  );  
+supabaseClient
+  .from('transactions')
+  .select('id')
+  .limit(1)
+  .then(function (result) {
+    if (result.error) {
+      console.error('Supabase test failed:', result.error.message);
+    } else {
+      console.log('Supabase connection test passed.');
+    }
+  });
 </script>
 
 </body>
