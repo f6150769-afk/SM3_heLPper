@@ -296,6 +296,10 @@ tr.fresh td{animation:fresh 2.6s ease-out}
           <button type="button" data-f="approved" aria-pressed="false">Approved<span id="c-approved"></span></button>
         </div>
         <div class="grow"></div>
+        <div class="seg" role="group" aria-label="Ledger data mode" id="ledger-mode">
+           <button type="button" data-mode="demo" aria-pressed="true">Demo</button>
+           <button type="button" data-mode="real" aria-pressed="false">Real data</button>
+        </div>
         <span class="note" id="ledger-msg" role="status" aria-live="polite"></span>
         <button class="btn" id="approve-all" type="button">Approve All</button>
       </div>
@@ -470,6 +474,56 @@ var POOL=[
 function vatOf(t){return t.noVat?0:Math.round(Math.abs(t.amount)*7/107);}
 
 var state={ledger:LEDGER0.map(function(t){return Object.assign({},t);}),buffer:50000,fc:null};
+var ledgerMode = 'demo';
+var realLedgerUserId = null;
+   
+var realLedger = [];
+
+async function loadRealLedger() {
+  const { data: sessionData, error: sessionError } =
+    await supabaseClient.auth.getSession();
+
+  if (sessionError) {
+    throw sessionError;
+  }
+
+  const user = sessionData.session && sessionData.session.user;
+
+  if (!user) {
+    realLedger = [];
+    realLedgerUserId = null;
+    throw new Error('Please sign in before opening Real data.');
+  }
+
+  const { data, error } = await supabaseClient
+    .from('transactions')
+    .select('id,user_id,transaction_date,description,category,transaction_type,amount_satang,currency,status,source_document')
+    .eq('user_id', user.id)
+    .order('transaction_date', { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  realLedger = (data || []).map(function (row) {
+    const amount = Number(row.amount_satang) / 100;
+
+    return {
+      id: row.id,
+      date: row.transaction_date,
+      vendor: row.description || 'Untitled transaction',
+      amount: row.transaction_type === 'expense' ? -Math.abs(amount) : Math.abs(amount),
+      cat: row.category || 'Uncategorized',
+      noVat: false,
+      status: row.status,
+      source_document: row.source_document
+    };
+  });
+
+  realLedgerUserId = user.id;
+}
+
+   
 function cust(id){return CUSTOMERS.filter(function(c){return c.id===id;})[0];}
 function cash(){return OPENING+sum(state.ledger.map(function(t){return t.amount;}));}
 function expDate(inv,extra){
@@ -768,27 +822,130 @@ function analyze(){
     if(p>=1){clearInterval(timer);finishAnalysis(files);}
   },70);
 }
-function finishAnalysis(files){
-  var maxId=Math.max.apply(null,state.ledger.map(function(t){return t.id;}));
-  files.forEach(function(f,k){
-    var p=POOL[(ui.poolIdx+k)%POOL.length],t={id:++maxId,date:p.date,vendor:p.vendor,amount:p.amount,cat:p.cat,noVat:p.noVat,status:'pending'};
-    state.ledger.push(t);ui.fresh[t.id]=true;
-    if(files[k].url){try{URL.revokeObjectURL(files[k].url);}catch(e){}}
+
+function finishAnalysis(files) {
+  if (ledgerMode === 'real') {
+    ui.analyzing = false;
+    $('#progress').hidden = true;
+
+    var res = $('#result');
+    res.removeAttribute('style');
+    res.hidden = false;
+    res.textContent =
+      'Real data mode: receipt extraction is not connected yet. No transactions were saved.';
+
+    $('#ledger-msg').textContent =
+      'No data was saved. Real receipt processing is not implemented yet.';
+
+    return;
+  }
+
+  var maxId = state.ledger.length
+    ? Math.max.apply(null, state.ledger.map(function (t) { return t.id; }))
+    : 0;
+
+  files.forEach(function (f, k) {
+    var p = POOL[(ui.poolIdx + k) % POOL.length];
+    var t = {
+      id: ++maxId,
+      date: p.date,
+      vendor: p.vendor,
+      amount: p.amount,
+      cat: p.cat,
+      noVat: p.noVat,
+      status: 'pending'
+    };
+
+    state.ledger.push(t);
+    ui.fresh[t.id] = true;
+
+    if (f.url) {
+      try { URL.revokeObjectURL(f.url); } catch (e) {}
+    }
   });
-  ui.poolIdx+=files.length;ui.queue=[];ui.analyzing=false;
-  $('#progress').hidden=true;
-  var res=$('#result');res.removeAttribute('style');res.hidden=false;
-  res.innerHTML='Added '+files.length+(files.length===1?' transaction':' transactions')+' to the ledger as Pending. <a href="#ledger" data-go>Review them</a>, then choose Approve All.';
-  $('#ledger-msg').textContent='';
+
+  ui.poolIdx += files.length;
+  ui.queue = [];
+  ui.analyzing = false;
+
+  $('#progress').hidden = true;
+
+  var res = $('#result');
+  res.removeAttribute('style');
+  res.hidden = false;
+  res.innerHTML =
+    'Added ' + files.length +
+    (files.length === 1 ? ' transaction' : ' transactions') +
+    ' to the demo ledger as Pending. <a href="#ledger" data-go>Review them</a>, then choose Approve All.';
+
+  $('#ledger-msg').textContent = 'Demo data mode.';
   refresh();
 }
-function approveAll(){
-  var n=0;state.ledger.forEach(function(t){if(t.status==='pending'){t.status='approved';n++;}});
-  $('#ledger-msg').textContent=n?'Approved '+n+(n===1?' entry.':' entries.'):'';
-  refresh();
+
+
+async function approveAll() {
+  if (ledgerMode === 'demo') {
+    var n = 0;
+    state.ledger.forEach(function (t) {
+      if (t.status === 'pending') {
+        t.status = 'approved';
+        n++;
+      }
+    });
+
+    $('#ledger-msg').textContent =
+      n ? 'Approved ' + n + (n === 1 ? ' entry.' : ' entries.') : 'No pending entries.';
+    refresh();
+    return;
+  }
+
+  try {
+    $('#ledger-msg').textContent = 'Saving approvals...';
+
+    const { data: sessionData, error: sessionError } =
+      await supabaseClient.auth.getSession();
+
+    if (sessionError) throw sessionError;
+
+    const user = sessionData.session && sessionData.session.user;
+
+    if (!user || user.id !== realLedgerUserId) {
+      throw new Error('Please sign in again before approving transactions.');
+    }
+
+    const pending = realLedger.filter(function (t) {
+      return t.status === 'pending';
+    });
+
+    if (!pending.length) {
+      $('#ledger-msg').textContent = 'No pending entries.';
+      return;
+    }
+
+    const { error } = await supabaseClient
+      .from('transactions')
+      .update({ status: 'approved' })
+      .eq('user_id', user.id)
+      .eq('status', 'pending');
+
+    if (error) throw error;
+
+    await loadRealLedger();
+
+    $('#ledger-msg').textContent =
+      'Approved ' + pending.length + ' entr' +
+      (pending.length === 1 ? 'y.' : 'ies.');
+
+    refresh();
+  } catch (err) {
+    $('#ledger-msg').textContent =
+      err.message || 'Could not save approvals.';
+  }
 }
+
 function renderLedger(){
-  var L=state.ledger,pend=L.filter(function(t){return t.status==='pending';});
+  var L = ledgerMode === 'real' ? realLedger : state.ledger;
+var pend = L.filter(function(t) { return t.status === 'pending'; });
   $('#c-all').textContent=L.length;$('#c-pending').textContent=pend.length;$('#c-approved').textContent=L.length-pend.length;
   $$('#seg button').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.f===ui.filter));});
   var rows=L.filter(function(t){return ui.filter==='all'||t.status===ui.filter;}).sort(function(a,b){return a.date<b.date?1:a.date>b.date?-1:b.id-a.id;});
@@ -944,8 +1101,89 @@ document.addEventListener('click',function(e){
   var rm=e.target.closest('[data-rm]');
   if(rm){var id=+rm.dataset.rm;ui.queue=ui.queue.filter(function(q){if(q.id===id&&q.url){try{URL.revokeObjectURL(q.url);}catch(x){}}return q.id!==id;});renderQueue();return;}
   if(e.target.id==='load-samples'){loadSamples();renderQueue();return;}
-  var ap=e.target.closest('[data-ap]');
-  if(ap){var id2=+ap.dataset.ap;state.ledger.forEach(function(t){if(t.id===id2)t.status='approved';});refresh();return;}
+  
+var ap = e.target.closest('[data-ap]');
+if (ap) {
+  var id2 = ap.dataset.ap;
+
+  if (ledgerMode === 'demo') {
+    state.ledger.forEach(function (t) {
+      if (String(t.id) === String(id2)) t.status = 'approved';
+    });
+    refresh();
+    return;
+  }
+
+  (async function () {
+    try {
+      $('#ledger-msg').textContent = 'Saving approval...';
+
+      const { data: sessionData, error: sessionError } =
+        await supabaseClient.auth.getSession();
+
+      if (sessionError) throw sessionError;
+
+      const user = sessionData.session && sessionData.session.user;
+      if (!user || user.id !== realLedgerUserId) {
+        throw new Error('Please sign in again to approve this transaction.');
+      }
+
+      const { error } = await supabaseClient
+        .from('transactions')
+        .update({ status: 'approved' })
+        .eq('id', id2)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      await loadRealLedger();
+      $('#ledger-msg').textContent = 'Transaction approved and saved.';
+      refresh();
+    } catch (err) {
+      $('#ledger-msg').textContent =
+        err.message || 'Could not save approval.';
+    }
+  })();
+
+  return;
+}
+
+   
+var modeButton = e.target.closest('#ledger-mode button');
+if (modeButton) {
+  var requestedMode = modeButton.dataset.mode;
+
+  if (requestedMode === 'demo') {
+    ledgerMode = 'demo';
+    $('#ledger-msg').textContent = 'Demo data mode.';
+    $$('#ledger-mode button').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.dataset.mode === ledgerMode));
+    });
+    refresh();
+    return;
+  }
+
+  (async function () {
+    try {
+      $('#ledger-msg').textContent = 'Loading your transactions...';
+      await loadRealLedger();
+      ledgerMode = 'real';
+
+      $$('#ledger-mode button').forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b.dataset.mode === ledgerMode));
+      });
+
+      $('#ledger-msg').textContent =
+        realLedger.length ? 'Your real transactions loaded.' : 'No real transactions yet.';
+      refresh();
+    } catch (err) {
+      $('#ledger-msg').textContent = err.message || 'Could not load real transactions.';
+    }
+  })();
+
+  return;
+}
+
   var seg=e.target.closest('#seg button');
   if(seg){ui.filter=seg.dataset.f;renderLedger();return;}
   var chip=e.target.closest('.chip');
