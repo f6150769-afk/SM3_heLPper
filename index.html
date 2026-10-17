@@ -918,25 +918,28 @@ async function approveAll() {
     });
 
     if (!pending.length) {
-      $('#ledger-msg').textContent = 'No pending entries.';
-      return;
-    }
+  $('#ledger-msg').textContent = 'No pending entries.';
+  return;
+}
 
-    const { error } = await supabaseClient
-      .from('transactions')
-      .update({ status: 'approved' })
-      .eq('user_id', user.id)
-      .eq('status', 'pending');
+const { data: updatedRows, error } = await supabaseClient
+  .from('transactions')
+  .update({ status: 'approved' })
+  .eq('user_id', user.id)
+  .eq('status', 'pending')
+  .select('id');
 
-    if (error) throw error;
+if (error) throw error;
 
-    await loadRealLedger();
+await loadRealLedger();
 
-    $('#ledger-msg').textContent =
-      'Approved ' + pending.length + ' entr' +
-      (pending.length === 1 ? 'y.' : 'ies.');
+const approvedCount = (updatedRows || []).length;
 
-    refresh();
+$('#ledger-msg').textContent =
+  'Approved ' + approvedCount + ' entr' +
+  (approvedCount === 1 ? 'y.' : 'ies.');
+
+refresh();
   } catch (err) {
     $('#ledger-msg').textContent =
       err.message || 'Could not save approvals.';
