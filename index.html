@@ -302,7 +302,7 @@ tr.fresh td{animation:fresh 2.6s ease-out}
         </div>
         <span class="note" id="ledger-msg" role="status" aria-live="polite"></span>
         <button class="btn" id="approve-all" type="button">Approve All</button>
-        <button class="btn" id="test-save" type="button">Test save ฿100</button>
+         
       </div>
       <div class="tablewrap">
         <table class="ledger-tbl">
@@ -522,51 +522,6 @@ async function loadRealLedger() {
   });
 
   realLedgerUserId = user.id;
-}
-
-async function addTestTransaction() {
-  try {
-    const { data: sessionData, error: sessionError } =
-      await supabaseClient.auth.getSession();
-
-   if (sessionError) {
-  throw sessionError;
-}
-    const user = sessionData.session && sessionData.session.user;
-
-if (!user || user.id !== realLedgerUserId) {
-  throw new Error('Please sign in again and reload Real data.');
-}
-
-    const { data, error } = await supabaseClient
-      .from('transactions')
-      .insert({
-        user_id: user.id,
-        transaction_date: new Date().toISOString().slice(0, 10),
-        description: 'TEST - delete after verification',
-        category: 'Testing',
-        transaction_type: 'expense',
-        amount_satang: 10000,
-        currency: 'THB',
-        status: 'pending'
-      })
-      .select('id')
-      .single();
-
-    if (error) {
-      throw error;
-    }
-
-    await loadRealLedger();
-
-    document.querySelector('#ledger-msg').textContent =
-      'Test saved successfully. ID: ' + data.id;
-
-    refresh();
-  } catch (err) {
-    document.querySelector('#ledger-msg').textContent =
-      'Test save failed: ' + (err.message || 'Unknown error');
-  }
 }
    
 function cust(id){return CUSTOMERS.filter(function(c){return c.id===id;})[0];}
@@ -1146,25 +1101,6 @@ document.addEventListener('click',function(e){
   var rm=e.target.closest('[data-rm]');
   if(rm){var id=+rm.dataset.rm;ui.queue=ui.queue.filter(function(q){if(q.id===id&&q.url){try{URL.revokeObjectURL(q.url);}catch(x){}}return q.id!==id;});renderQueue();return;}
   if(e.target.id==='load-samples'){loadSamples();renderQueue();return;}
-
-  var testSaveButton = e.target.closest('#test-save');
-  if (testSaveButton) {
-    if (ledgerMode !== 'real') {
-      $('#ledger-msg').textContent =
-        'Switch to Real data before testing.';
-      return;
-    }
-
-    if (testSaveButton.disabled) return;
-
-    testSaveButton.disabled = true;
-
-    addTestTransaction().finally(function () {
-      testSaveButton.disabled = false;
-    });
-
-    return;
-  }
   
 var ap = e.target.closest('[data-ap]');
 if (ap) {
