@@ -302,6 +302,7 @@ tr.fresh td{animation:fresh 2.6s ease-out}
         </div>
         <span class="note" id="ledger-msg" role="status" aria-live="polite"></span>
         <button class="btn" id="approve-all" type="button">Approve All</button>
+        <button class="btn" id="test-save" type="button">Test save ฿100</button>
       </div>
       <div class="tablewrap">
         <table class="ledger-tbl">
@@ -521,6 +522,51 @@ async function loadRealLedger() {
   });
 
   realLedgerUserId = user.id;
+}
+
+async function addTestTransaction() {
+  try {
+    const { data: sessionData, error: sessionError } =
+      await supabaseClient.auth.getSession();
+
+   if (sessionError) {
+  throw sessionError;
+}
+    const user = sessionData.session && sessionData.session.user;
+
+    if (!user) {
+      throw new Error('Please sign in first.');
+    }
+
+    const { data, error } = await supabaseClient
+      .from('transactions')
+      .insert({
+        user_id: user.id,
+        transaction_date: new Date().toISOString().slice(0, 10),
+        description: 'TEST - delete after verification',
+        category: 'Testing',
+        transaction_type: 'expense',
+        amount_satang: 10000,
+        currency: 'THB',
+        status: 'pending'
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    await loadRealLedger();
+
+    document.querySelector('#ledger-msg').textContent =
+      'Test saved successfully. ID: ' + data.id;
+
+    refresh();
+  } catch (err) {
+    document.querySelector('#ledger-msg').textContent =
+      'Test save failed: ' + (err.message || 'Unknown error');
+  }
 }
    
 function cust(id){return CUSTOMERS.filter(function(c){return c.id===id;})[0];}
