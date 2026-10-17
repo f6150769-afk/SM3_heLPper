@@ -522,7 +522,6 @@ async function loadRealLedger() {
 
   realLedgerUserId = user.id;
 }
-
    
 function cust(id){return CUSTOMERS.filter(function(c){return c.id===id;})[0];}
 function cash(){return OPENING+sum(state.ledger.map(function(t){return t.amount;}));}
@@ -1218,17 +1217,7 @@ else window.addEventListener('resize',drawChart);
     SUPABASE_URL,
     SUPABASE_PUBLISHABLE_KEY
   );  
-supabaseClient
-  .from('transactions')
-  .select('id')
-  .limit(1)
-  .then(function (result) {
-    if (result.error) {
-      console.error('Supabase test failed:', result.error.message);
-    } else {
-      console.log('Supabase connection test passed.');
-    }
-  });
+
 </script>
    
 <div id="auth-widget" style="position:fixed;top:16px;right:16px;z-index:9999;font-family:Arial,sans-serif;">
