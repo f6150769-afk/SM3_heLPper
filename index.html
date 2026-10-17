@@ -534,9 +534,9 @@ async function addTestTransaction() {
 }
     const user = sessionData.session && sessionData.session.user;
 
-    if (!user) {
-      throw new Error('Please sign in first.');
-    }
+if (!user || user.id !== realLedgerUserId) {
+  throw new Error('Please sign in again and reload Real data.');
+}
 
     const { data, error } = await supabaseClient
       .from('transactions')
@@ -1146,6 +1146,25 @@ document.addEventListener('click',function(e){
   var rm=e.target.closest('[data-rm]');
   if(rm){var id=+rm.dataset.rm;ui.queue=ui.queue.filter(function(q){if(q.id===id&&q.url){try{URL.revokeObjectURL(q.url);}catch(x){}}return q.id!==id;});renderQueue();return;}
   if(e.target.id==='load-samples'){loadSamples();renderQueue();return;}
+
+  var testSaveButton = e.target.closest('#test-save');
+  if (testSaveButton) {
+    if (ledgerMode !== 'real') {
+      $('#ledger-msg').textContent =
+        'Switch to Real data before testing.';
+      return;
+    }
+
+    if (testSaveButton.disabled) return;
+
+    testSaveButton.disabled = true;
+
+    addTestTransaction().finally(function () {
+      testSaveButton.disabled = false;
+    });
+
+    return;
+  }
   
 var ap = e.target.closest('[data-ap]');
 if (ap) {
